@@ -1,11 +1,13 @@
 $CONST_CURRENT_URL = "https://www.splunk.com/en_us/download/splunk-enterprise.html"
 $CONST_LEGACY_URL = "https://www.splunk.com/en_us/download/previous-releases.html"
 
+$CONST_CURRENT_UF_URL = "https://www.splunk.com/en_us/download/universal-forwarder.html"
+$CONST_LEGACY_UF_URL = "https://www.splunk.com/en_us/download/previous-releases-universal-forwarder.html"
+
 $CONST_MENU = @(
-    "Download latest Version",
+    "Download Predefined",
     "Download Specific Version",
-    "Download Specific Package",
-    "Download All - Note: This will take a long time!"
+    "Download Specific Package"
 )
 
 function Get-SplunkUFurls($url){
@@ -26,13 +28,14 @@ function Get-SplunkUFurls($url){
 #>
     $response = (New-Object System.Net.WebClient).DownloadString([System.Uri]$url)
     $urls = $response | select-string -pattern  'data-link="(?<url>https://[^"]+)' -AllMatches | ForEach-Object {$_.matches.groups | Where-Object Name -eq 'url'} | Select-Object -ExpandProperty Value
-    $urls | Select-String -Pattern "https:\/\/.+\/products\/splunk\/releases\/(?<version>[^\/]+)\/(?<os>[^\/]+)\/(?<file_name>[^\/]+)" -AllMatches | ForEach-Object {
+    $urls | Select-String -Pattern "https:\/\/.+\/products\/(splunk|universalforwarder)\/releases\/(?<version>[^\/]+)\/(?<os>[^\/]+)\/(?<file_name>[^\/]+)" -AllMatches | ForEach-Object {
         @{
             'url' = $_.tostring();
             'md5_url' = (-join ($_.tostring(),".md5"))
-            'version' = $_.Matches.groups[1].value;
-            'os' = $_.Matches.groups[2].value;
-            'file_name' = $_.Matches.groups[3].value
+            'version' = $_.Matches.groups[2].value;
+            'product' = $_.Matches.groups[1].value;
+            'os' = $_.Matches.groups[3].value;
+            'file_name' = $_.Matches.groups[4].value
         }
     }
 }
@@ -90,7 +93,7 @@ function Get-SplunkUFBinaries($url_list){
         Outputs file to disk based on input provided. Write's output when file download is complete.
 #>
     foreach ($hashtable_url in $url_list){
-        $out_dir = "$($hashtable_url.version)/$($hashtable_url.os)"
+        $out_dir = "splunk"
         $url = [System.Uri]$hashtable_url.url
         $md5 = ((New-Object System.Net.WebClient).DownloadString([System.Uri]$hashtable_url.md5_url) | Select-String -Pattern "\=\s([a-fA-Z0-9]{32})$" -AllMatches).Matches.Groups[1].Value
         
@@ -160,8 +163,14 @@ function main(){
     $menu_selection = Write-HostOptions -title "Please choose how to proceed." -options $CONST_MENU 
     $all_splunk_list = @()
     $current_splunk_list = @()
+    $download_list = @()
     
     Get-SplunkUFurls($CONST_CURRENT_URL) | ForEach-Object {
+        $all_splunk_list += $_
+        $current_splunk_list += $_
+    }
+
+    Get-SplunkUFurls($CONST_CURRENT_UF_URL) | ForEach-Object {
         $all_splunk_list += $_
         $current_splunk_list += $_
     }
@@ -169,10 +178,20 @@ function main(){
     Get-SplunkUFurls($CONST_LEGACY_URL) | ForEach-Object {
         $all_splunk_list += $_
     }
+
+    Get-SplunkUFurls($CONST_LEGACY_UF_URL) | ForEach-Object {
+        $all_splunk_list += $_
+    }
     
     switch($CONST_MENU.IndexOf($menu_selection) + 1){
         1{
-            $get_output = $current_splunk_list
+            $version = Write-HostOptions -title "Select Version" -options $($all_splunk_list.version | Sort-Object -Unique -Descending)
+
+            $download_list += $all_splunk_list | Where-Object {($_.os -eq "windows") -and ($_.product -eq "universalforwarder") -and ($_.version -eq $version) -and ($_.file_name -like "*x64.msi")}
+            $download_list += $all_splunk_list | Where-Object {($_.os -eq "linux") -and ($_.product -eq "universalforwarder") -and ($_.version -eq $version) -and ($_.file_name -like "*.x86_64.rpm")} 
+            $download_list += $all_splunk_list | Where-Object {($_.os -eq "linux") -and ($_.product -eq "splunk") -and ($_.version -eq $version) -and ($_.file_name -like "*.x86_64.rpm")}
+
+            $get_output = $download_list
         }
         2{
             $version = Write-HostOptions -title "Select Version" -options $(($all_splunk_list).version | Sort-Object -Unique -Descending)
@@ -184,9 +203,6 @@ function main(){
             $package = Write-HostOptions -title "Select Package" -options $(($all_splunk_list | Where-Object {($_.os -eq $os) -and ($_.version -eq $version)}).file_name | Sort-Object -Unique -Descending)
             $get_output = $all_splunk_list | Where-Object {($_.os -eq $os) -and ($_.version -eq $version) -and ($_.file_name -eq $package)}        
         }
-        4{
-            $get_output = $all_splunk_list
-        }
         Default{
 
         }
@@ -194,5 +210,6 @@ function main(){
     
     Get-SplunkUFBinaries($get_output)
 }
+
 
 main
