@@ -185,7 +185,7 @@ function main(){
     
     switch($CONST_MENU.IndexOf($menu_selection) + 1){
         1{
-            $version = Write-HostOptions -title "Select Version" -options $($all_splunk_list.version | Sort-Object -Unique -Descending)
+            $version = Write-HostOptions -title "Select Version" -options $($all_splunk_list.version | Sort-Object {[version]$_} -Unique -Descending)
 
             $download_list += $all_splunk_list | Where-Object {($_.os -eq "windows") -and ($_.product -eq "universalforwarder") -and ($_.version -eq $version) -and ($_.file_name -like "*x64.msi")}
             $download_list += $all_splunk_list | Where-Object {($_.os -eq "linux") -and ($_.product -eq "universalforwarder") -and ($_.version -eq $version) -and ($_.file_name -like "*.x86_64.rpm")} 
@@ -194,13 +194,13 @@ function main(){
             $get_output = $download_list
         }
         2{
-            $version = Write-HostOptions -title "Select Version" -options $(($all_splunk_list).version | Sort-Object -Unique -Descending)
+            $version = Write-HostOptions -title "Select Version" -options $(($all_splunk_list).version | Sort-Object {[version]$_} -Unique -Descending)
             $get_output = $all_splunk_list | Where-Object {$_.version -eq $version}        
         }
         3{
-            $os = Write-HostOptions -title "Select Operating System" -options $($all_splunk_list.os | Sort-Object -Unique -Descending)
-            $version = Write-HostOptions -title "Select Version" -options $(($all_splunk_list | Where-Object os -eq $os).version | Sort-Object -Unique -Descending)
-            $package = Write-HostOptions -title "Select Package" -options $(($all_splunk_list | Where-Object {($_.os -eq $os) -and ($_.version -eq $version)}).file_name | Sort-Object -Unique -Descending)
+            $os = Write-HostOptions -title "Select Operating System" -options $($all_splunk_list.os | Sort-Object {[version]$_} -Unique -Descending)
+            $version = Write-HostOptions -title "Select Version" -options $(($all_splunk_list | Where-Object os -eq $os).version | Sort-Object {[version]$_} -Unique -Descending)
+            $package = Write-HostOptions -title "Select Package" -options $(($all_splunk_list | Where-Object {($_.os -eq $os) -and ($_.version -eq $version)}).file_name | Sort-Object {[version]$_} -Unique -Descending)
             $get_output = $all_splunk_list | Where-Object {($_.os -eq $os) -and ($_.version -eq $version) -and ($_.file_name -eq $package)}        
         }
         Default{
@@ -213,3 +213,4 @@ function main(){
 
 
 main
+
